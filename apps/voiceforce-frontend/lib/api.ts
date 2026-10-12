@@ -1,9 +1,9 @@
 export const getApiBase = () => {
   if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
   if (process.env.NEXT_PUBLIC_CORE_BACKEND_URL) return process.env.NEXT_PUBLIC_CORE_BACKEND_URL;
-  if (typeof window === 'undefined') return 'http://localhost:4002';
+  if (typeof window === 'undefined') return 'http://localhost:4005';
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal ? 'http://localhost:4002' : 'https://api.180workspace.com';
+  return isLocal ? 'http://localhost:4005' : 'https://api.180workspace.com';
 };
 
 export const getAuthToken = (): string | null => {

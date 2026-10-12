@@ -23,15 +23,20 @@ export default function PlatformLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isDark, setIsDark] = useState<boolean>(true);
+  const [isDark, setIsDark] = useState<boolean>(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
   useEffect(() => {
-    // Read theme
+    // Read theme (defaults to white/light mode)
     const storedTheme = localStorage.getItem('180_theme');
-    const isDarkMode = storedTheme ? storedTheme === 'dark' : document.documentElement.classList.contains('dark');
+    const isDarkMode = storedTheme === 'dark';
     setIsDark(isDarkMode);
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
 
     const token = getAuthToken();
     if (!token) {

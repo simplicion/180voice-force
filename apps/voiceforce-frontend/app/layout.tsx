@@ -29,9 +29,7 @@ export default function RootLayout({
             __html: `
               try {
                 var theme = localStorage.getItem('180_theme');
-                if (!theme) {
-                  theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-                }
+                // Default to white/light mode unless dark is explicitly stored
                 if (theme === 'dark') {
                   document.documentElement.classList.add('dark');
                 } else {

@@ -14,7 +14,7 @@ import { getAuthToken } from '../lib/api';
 export default function VoiceforceLandingPage() {
   const { launch180Identity, isOpeningIdentity } = use180Identity();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isDark, setIsDark] = useState<boolean>(true);
+  const [isDark, setIsDark] = useState<boolean>(false);
   
   // Interactive Voice Demo State
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
@@ -49,7 +49,7 @@ export default function VoiceforceLandingPage() {
     setIsAuthenticated(Boolean(token));
 
     const storedTheme = localStorage.getItem('180_theme');
-    const isDarkMode = storedTheme ? storedTheme === 'dark' : true;
+    const isDarkMode = storedTheme === 'dark';
     setIsDark(isDarkMode);
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
