@@ -1,0 +1,736 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// TENANCY & IDENTITY ANCHORS
+// ==========================================
+
+model Company {
+  id             String  @id @default(uuid())
+  name           String
+  slug           String? @unique
+  logoUrl        String?
+  currency       String  @default("USD")
+  currencySymbol String  @default("$")
+
+  // Voiceforce Prepaid Wallet
+  voiceBalanceInr        Float   @default(0.0)
+  voiceAutoRecharge      Boolean @default(false)
+  voiceThresholdInr      Float   @default(100.0)
+  voiceRechargeAmountInr Float   @default(500.0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                   User[]
+  voiceAgents             VoiceAgent[]
+  phoneNumbers            PhoneNumber[]
+  callCampaigns           CallCampaign[]
+  campaignRecipients      CallCampaignRecipient[]
+  tasks                   Task[]
+  callSessions            CallSession[]
+  voiceWalletTransactions VoiceWalletTransaction[]
+  dncRegistries           DncRegistry[]
+  forwardingRules         ForwardingRule[]
+  callQueues              CallQueue[]
+  dailyBriefings          DailyVoiceBriefing[]
+  ragVaults               RagMemoryVault[]
+  documents               Document[]
+  documentCategories      DocumentCategory[]
+  agentRequests           AgentRequest[]
+  calendarEvents          CalendarEvent[]
+  callTranscriptSegments  CallTranscriptSegment[]  @relation("CompanyCallTranscriptSegments")
+  callToolExecutions      CallToolExecution[]      @relation("CompanyCallToolExecutions")
+
+  @@index([slug])
+}
+
+model User {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  email     String
+  name      String?
+  role      String   @default("MEMBER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  resolvedAgentRequests AgentRequest[]  @relation("ResolvedAgentRequests")
+  createdCalendarEvents CalendarEvent[] @relation("UserCalendarEvents")
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+// ==========================================
+// 180 VOICEFORCE CORE MODELS
+// ==========================================
+
+model VoiceAgent {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name         String // e.g. "Maya - Sales Specialist"
+  role         String // e.g. "Order and Appointment Assistant"
+  systemPrompt String @db.Text
+  language     String @default("en-US")
+
+  // Voice Synthesis Configuration
+  voiceProvider    String @default("cartesia") // "cartesia" | "elevenlabs" | "openai"
+  voiceId          String // Provider voice ID
+  voiceTemperature Float  @default(0.7)
+  voiceSpeed       Float  @default(1.0)
+
+  // Pipeline Engine Selection
+  engineType String @default("cascaded") // "cascaded" | "openai_realtime"
+  llmModel   String @default("llama-3.3-70b-versatile")
+  sttModel   String @default("nova-3")
+
+  // Guardrails & Behaviors
+  firstMessage        String? @db.Text
+  allowBargeIn        Boolean @default(true)
+  inactivityTimeoutMs Int     @default(5000)
+  maxDurationSeconds  Int     @default(600)
+
+  // Allowed Tools
+  enabledToolNames Json @default("[\"search_knowledge_base\", \"create_task\", \"create_crm_client\"]")
+
+  // Call Recording & Compliance
+  recordCalls       Boolean @default(true)
+  recordConsentText String? @default("This call may be recorded for quality and compliance purposes.")
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedNumbers PhoneNumber[]
+  calls           CallSession[]
+  campaigns       CallCampaign[]
+  guardrail       VoiceAgentGuardrail?
+  versions        VoiceAgentVersion[]
+  linkedVaults    VoiceAgentVaultLink[]
+  agentRequests   AgentRequest[]
+
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model PhoneNumber {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  e164Number   String  @unique
+  friendlyName String?
+  provider     String // "telnyx" | "twilio" | "verified_caller_id"
+  providerId   String?
+
+  countryCode  String @default("US")
+  capabilities Json   @default("{\"voice\": true, \"sms\": false}")
+
+  assignedAgentId String?
+  assignedAgent   VoiceAgent? @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+
+  status        String @default("active")
+  maxConcurrent Int    @default(10)
+  currentActive Int    @default(0)
+  routingMode   String @default("direct_agent")
+
+  monthlyRentalInr Float     @default(149.0)
+  nextRenewalDate  DateTime?
+  autoRenew        Boolean   @default(true)
+  coolingDownSince DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  calls           CallSession[]
+  forwardingRules ForwardingRule[]
+  callCampaigns   CallCampaign[]
+
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model CallCampaign {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name         String
+  voiceAgentId String
+  voiceAgent   VoiceAgent @relation(fields: [voiceAgentId], references: [id], onDelete: Restrict)
+
+  phoneNumberId String?
+  phoneNumber   PhoneNumber? @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+
+  status       String    @default("draft")
+  contactList  Json?     @default("[]")
+  scheduledAt  DateTime?
+  campaignGoal String?   @db.Text
+  specialOffer String?   @db.Text
+
+  maxConcurrent     Int   @default(5)
+  callsPerSecond    Float @default(1.0)
+  retryCount        Int   @default(2)
+  retryIntervalMins Int   @default(30)
+
+  totalRecipients Int @default(0)
+  completedCalls  Int @default(0)
+  successfulCalls Int @default(0)
+  failedCalls     Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  calls      CallSession[]
+  recipients CallCampaignRecipient[]
+
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model CallSession {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  campaignId String?
+  campaign   CallCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  voiceAgentId String
+  voiceAgent   VoiceAgent @relation(fields: [voiceAgentId], references: [id], onDelete: Restrict)
+
+  phoneNumberId String?
+  phoneNumber   PhoneNumber? @relation(fields: [phoneNumberId], references: [id], onDelete: SetNull)
+
+  direction      String  @default("outbound")
+  recipientPhone String
+  recipientName  String?
+
+  livekitRoomName String? @unique
+  sipCallId       String?
+
+  status           String  @default("queued")
+  disconnectReason String?
+
+  durationSeconds  Int   @default(0)
+  billableMinutes  Int   @default(0)
+  estimatedCostInr Float @default(0.0)
+
+  carrierCostUsd Float?  @default(0.0)
+  engineCostUsd  Float?  @default(0.0)
+  totalBilledUsd Float?  @default(0.0)
+  billedCurrency String? @default("USD")
+  fxRateApplied  Float?  @default(1.0)
+
+  recordingUrl             String?
+  recordingDurationSeconds Int?
+  recordingStatus          String? @default("none")
+
+  summary        String? @db.Text
+  sentiment      String?
+  callOutcome    String?
+  actionItems    Json?   @default("[]")
+  structuredData Json?   @default("{}")
+
+  startedAt  DateTime?
+  answeredAt DateTime?
+  endedAt    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  transcripts      CallTranscriptSegment[]
+  toolExecutions   CallToolExecution[]
+  escalationEvents CallEscalationEvent[]
+  auditLogs        ActionAuditLog[]
+
+  @@unique([id, companyId])
+  @@index([companyId, status])
+  @@index([recipientPhone])
+}
+
+model CallTranscriptSegment {
+  id            String      @id @default(uuid())
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  speaker     String // "agent" | "user" | "system"
+  text        String @db.Text
+  startTimeMs Int
+  endTimeMs   Int
+
+  interrupted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  companyId   String?
+  company     Company? @relation("CompanyCallTranscriptSegments", fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+  @@index([companyId])
+}
+
+model CallToolExecution {
+  id            String      @id @default(uuid())
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  toolName     String
+  arguments    Json
+  result       Json
+  durationMs   Int
+  isSuccess    Boolean @default(true)
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  companyId String?
+  company   Company? @relation("CompanyCallToolExecutions", fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([callSessionId])
+  @@index([companyId])
+}
+
+model VoiceWalletTransaction {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  amountInr       Float
+  balanceAfterInr Float
+  type            String // "topup" | "call_deduction" | "refund"
+  callSessionId   String?
+  paymentRef      String?
+  description     String
+  createdAt       DateTime @default(now())
+
+  @@index([companyId])
+  @@index([callSessionId])
+  @@index([companyId, paymentRef])
+}
+
+model DncRegistry {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  phoneNumber String
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@unique([companyId, phoneNumber])
+  @@index([companyId])
+}
+
+model ForwardingRule {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  phoneNumberId String
+  phoneNumber   PhoneNumber @relation(fields: [phoneNumberId], references: [id], onDelete: Cascade)
+
+  name           String
+  strategy       String @default("sequential")
+  ringTimeoutSec Int    @default(20)
+  destinations   Json   @default("[]")
+
+  scheduleEnabled Boolean @default(false)
+  timezone        String  @default("Asia/Kolkata")
+  businessHours   Json?
+
+  fallbackType           String  @default("ai_agent")
+  fallbackAgentId        String?
+  fallbackVoicemailEmail String?
+
+  maxHops             Int     @default(4)
+  whisperAnnouncement String?
+  isActive            Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, companyId])
+  @@index([companyId, phoneNumberId])
+}
+
+model CallQueue {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name             String
+  maxQueueSize     Int     @default(25)
+  maxWaitTimeSec   Int     @default(300)
+  holdMusicUrl     String?
+  announcePosition Boolean @default(true)
+
+  currentWaiting Int @default(0)
+  totalProcessed Int @default(0)
+  avgWaitSeconds Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, companyId])
+  @@index([companyId])
+}
+
+model VoiceAgentGuardrail {
+  id           String     @id @default(uuid())
+  companyId    String
+  voiceAgentId String     @unique
+  voiceAgent   VoiceAgent @relation(fields: [voiceAgentId], references: [id], onDelete: Cascade)
+
+  maxDiscountPercent Float @default(10.0)
+  maxDiscountAmount  Float @default(50.0)
+  maxOrderValue      Float @default(1000.0)
+
+  minLeadTimeHours Int @default(2)
+  maxAdvanceDays   Int @default(30)
+  bufferMinutes    Int @default(15)
+
+  maxDeliveryKm       Float?
+  forbiddenTopics     Json    @default("[]")
+  pciRedactionEnabled Boolean @default(true)
+  rules               Json?   @default("{\"dos\": [], \"donts\": []}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model VoiceAgentVersion {
+  id           String     @id @default(uuid())
+  companyId    String
+  voiceAgentId String
+  voiceAgent   VoiceAgent @relation(fields: [voiceAgentId], references: [id], onDelete: Cascade)
+
+  versionNumber Int
+  changelog     String?
+  snapshot      Json
+  createdById   String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([voiceAgentId, versionNumber])
+  @@index([companyId, voiceAgentId])
+}
+
+model IndustryTemplate {
+  id          String  @id @default(uuid())
+  slug        String  @unique
+  name        String
+  description String
+  category    String
+  icon        String?
+
+  defaultConfig  Json
+  suggestedTools Json
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model CallEscalationEvent {
+  id            String      @id @default(uuid())
+  companyId     String
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  targetType   String
+  targetNumber String?
+  targetUserId String?
+
+  triggerReason  String
+  sentimentScore Float?
+
+  whisperMessage  String
+  briefingPayload Json
+  status          String @default("initiated")
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId, callSessionId])
+}
+
+model DailyVoiceBriefing {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  briefingDate DateTime @db.Date
+
+  totalCalls         Int   @default(0)
+  missedCallsSaved   Int   @default(0)
+  leadsCaptured      Int   @default(0)
+  appointmentsBooked Int   @default(0)
+  ordersCreated      Int   @default(0)
+  revenueInfluenced  Float @default(0.0)
+  laborHoursSaved    Float @default(0.0)
+
+  topInquiries   Json @default("[]")
+  unansweredFaqs Json @default("[]")
+  actionItems    Json @default("[]")
+
+  deliveredVia Json     @default("[]")
+  createdAt    DateTime @default(now())
+
+  @@unique([companyId, briefingDate])
+  @@index([companyId])
+}
+
+model ActionAuditLog {
+  id            String      @id @default(uuid())
+  companyId     String
+  callSessionId String
+  callSession   CallSession @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  turnIndex      Int
+  customerSpeech String  @db.Text
+  detectedIntent String?
+  confidence     Float?
+
+  toolName      String?
+  toolArguments Json?
+  toolResult    Json?
+
+  policyCheck    String
+  policyReason   String?
+  agentUtterance String  @db.Text
+
+  latencyMs Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([companyId, callSessionId])
+}
+
+model KnowledgeChunk {
+  id            String  @id @default(uuid())
+  companyId     String
+  documentId    String
+  documentTitle String?
+
+  vaultId  String?
+  category String? @default("General")
+
+  chunkIndex Int
+  content    String @db.Text
+  embedding  Json?
+  metadata   Json?  @default("{}")
+
+  createdAt DateTime @default(now())
+
+  @@index([companyId])
+  @@index([documentId])
+  @@index([vaultId])
+}
+
+model DocumentCategory {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name        String
+  color       String? @default("#6366f1")
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model RagMemoryVault {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name               String
+  purposeDescription String? @db.Text
+  mode               String  @default("general")
+  category           String? @default("General")
+  visibility         String  @default("public_voice")
+
+  offeringsData Json? @default("[]")
+  customerData  Json? @default("[]")
+
+  totalDocuments  Int    @default(0)
+  totalChunks     Int    @default(0)
+  totalSizeBytes  BigInt @default(0)
+  status          String @default("ready")
+  progressPercent Int    @default(100)
+
+  documents    VaultDocumentItem[]
+  linkedAgents VoiceAgentVaultLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, mode])
+}
+
+model Document {
+  id            String              @id @default(uuid())
+  companyId     String
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name          String              @default("Untitled Document")
+  title         String?
+  documentType  String              @default("UPLOADED_FILE")
+  fileUrl       String?
+  fileSizeBytes Int?
+  mimeType      String?
+  content       String?             @db.Text
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  vaultItems    VaultDocumentItem[]
+
+  @@index([companyId])
+}
+
+model VaultDocumentItem {
+  id      String         @id @default(uuid())
+  vaultId String
+  vault   RagMemoryVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  status      String @default("ready")
+  chunksCount Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@unique([vaultId, documentId])
+  @@index([vaultId])
+  @@index([documentId])
+}
+
+model VoiceAgentVaultLink {
+  id           String     @id @default(uuid())
+  voiceAgentId String
+  voiceAgent   VoiceAgent @relation(fields: [voiceAgentId], references: [id], onDelete: Cascade)
+
+  vaultId String
+  vault   RagMemoryVault @relation(fields: [vaultId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([voiceAgentId, vaultId])
+  @@index([voiceAgentId])
+  @@index([vaultId])
+}
+
+model CalendarEvent {
+  id            String         @id @default(uuid())
+  companyId     String
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  startDate     DateTime
+  endDate       DateTime?
+  allDay        Boolean        @default(false)
+  createdById   String?
+  createdBy     User?          @relation("UserCalendarEvents", fields: [createdById], references: [id], onDelete: SetNull)
+  agentRequests AgentRequest[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([companyId])
+}
+
+model AgentRequest {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  voiceAgentId   String?
+  voiceAgent     VoiceAgent? @relation(fields: [voiceAgentId], references: [id], onDelete: SetNull)
+  voiceAgentName String?
+  callSessionId  String?
+
+  type     String @default("schedule_meeting")
+  priority String @default("medium")
+  status   String @default("pending")
+
+  customerName       String
+  customerPhone      String?
+  customerEmail      String?
+  topic              String
+  requestedTimeRaw   String?
+  scheduledStart     DateTime?
+  scheduledEnd       DateTime?
+  locationOrPlatform String?   @default("google_meet")
+  notes              String?
+
+  calendarEventId String?
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+
+  resolvedById    String?
+  resolvedBy      User?     @relation("ResolvedAgentRequests", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt      DateTime?
+  resolutionNotes String?
+
+  metadata Json? @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, status])
+  @@index([companyId, type])
+  @@index([voiceAgentId])
+  @@index([calendarEventId])
+  @@index([resolvedById])
+  @@index([createdAt])
+}
+
+model CallCampaignRecipient {
+  id         String       @id @default(uuid())
+  companyId  String
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   CallCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  phoneNumber    String
+  recipientName  String?
+  leadAttributes Json?   @default("{}")
+
+  status        String    @default("pending")
+  attemptCount  Int       @default(0)
+  lastAttemptAt DateTime?
+  nextAttemptAt DateTime?
+
+  callSessionId    String?
+  callOutcome      String?
+  disconnectReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([id, companyId])
+  @@index([campaignId, status])
+  @@index([companyId, phoneNumber])
+}
+
+model Task {
+  id           String    @id @default(uuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?   @db.Text
+  status       String    @default("todo")
+  priority     String    @default("medium")
+  dueDate      DateTime?
+  assignedToId String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([companyId])
+}

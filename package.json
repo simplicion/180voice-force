@@ -1,0 +1,31 @@
+{
+  "name": "voice-force",
+  "version": "1.0.0",
+  "private": true,
+  "description": "180 Voiceforce: Autonomous AI Voice Calling, Telephony Studio & Contact Operations Platform",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "node scripts/dev-runner.js",
+    "dev:backend": "pnpm --filter @workspace/voiceforce-backend dev",
+    "dev:frontend": "pnpm --filter @workspace/voiceforce-frontend dev",
+    "db:generate": "pnpm --filter @workspace/db-voiceforce generate",
+    "db:push": "pnpm --filter @workspace/db-voiceforce db:push",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "prettier": "latest",
+    "turbo": "latest",
+    "typescript": "^5.7.3"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": "9"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "prisma": "^5.22.0"
+  }
+}
