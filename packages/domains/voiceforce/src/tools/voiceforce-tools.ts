@@ -1,5 +1,6 @@
 import { prisma } from '@workspace/db-voiceforce';
 import { TelnyxService } from '../telephony/telnyx.service';
+import { GuardrailEnforcementEngine } from '../guardrails/guardrail-enforcement.engine';
 
 export interface VoiceToolDefinition {
   name: string;
@@ -263,10 +264,220 @@ export const sendSmsConfirmationTool: VoiceToolDefinition = {
   }
 };
 
+
+/**
+ * Tool 4: Search Company Knowledge Vaults & Business Documents (RAG)
+ */
+export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
+  name: 'search_business_knowledge',
+  description: 'Searches uploaded company documents, knowledge vaults, warranty terms, and business offerings for accurate facts.',
+  allowedRoles: ['all'],
+  category: 'knowledge',
+  parameters: {
+    query: { type: 'string', description: 'The question, term, or policy to query in company vaults', required: true },
+    limit: { type: 'number', description: 'Maximum number of results to return (default: 3)' }
+  },
+  execute: async (args, context) => {
+    const { companyId } = context;
+    if (!companyId) return { success: false, error: 'Company ID is required' };
+
+    const queryText = (args.query || '').trim();
+    if (!queryText) return { success: false, error: 'Query text is required' };
+
+    try {
+      // 1. Search knowledge chunks
+      const chunks = await (prisma as any).knowledgeChunk.findMany({
+        where: {
+          content: { contains: queryText, mode: 'insensitive' }
+        },
+        take: Number(args.limit) || 3,
+        select: { id: true, content: true }
+      });
+
+      // 2. Search company offerings / catalog
+      const offerings = await (prisma as any).companyOffering.findMany({
+        where: {
+          companyId,
+          OR: [
+            { name: { contains: queryText, mode: 'insensitive' } },
+            { description: { contains: queryText, mode: 'insensitive' } }
+          ]
+        },
+        take: 3,
+        select: { name: true, description: true, price: true, currency: true }
+      });
+
+      const results: string[] = [];
+      if (chunks && chunks.length > 0) {
+        chunks.forEach((c: any) => results.push(`[Document Knowledge]: ${c.content}`));
+      }
+      if (offerings && offerings.length > 0) {
+        offerings.forEach((o: any) => results.push(`[Offering Catalog]: ${o.name} - ${o.description || 'Standard'} (Price: ${o.currency || '$'}${o.price})`));;
+      }
+
+      if (results.length === 0) {
+        return {
+          success: true,
+          query: queryText,
+          found: false,
+          message: `No specific document found matching "${queryText}". Proceed using standard company guidelines.`
+        };
+      }
+
+      return {
+        success: true,
+        query: queryText,
+        found: true,
+        results,
+        message: `Found ${results.length} relevant reference(s):\n${results.join('\n')}`
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+        message: 'Knowledge vault query encountered an error. Falling back to general agent knowledge.'
+      };
+    }
+  }
+};
+
+/**
+ * Tool 4B: Alias for Knowledge Base Search
+ */
+export const searchKnowledgeBaseTool: VoiceToolDefinition = {
+  ...searchBusinessKnowledgeTool,
+  name: 'search_knowledge_base'
+};
+
+/**
+ * Tool 5: Create Follow-up Task in Company Workspace
+ */
+export const createTaskTool: VoiceToolDefinition = {
+  name: 'create_task',
+  description: 'Creates a follow-up task or action item on the team task board for post-call resolution.',
+  allowedRoles: ['all'],
+  category: 'tasks',
+  parameters: {
+    title: { type: 'string', description: 'Action item title or summary', required: true },
+    description: { type: 'string', description: 'Detailed context or notes for the follow-up' },
+    priority: { type: 'string', description: 'Priority level: low, medium, high, urgent' },
+    dueDate: { type: 'string', description: 'ISO date string or human readable due date' }
+  },
+  execute: async (args, context) => {
+    const { companyId } = context;
+    if (!companyId) return { success: false, error: 'Company ID is required' };
+
+    try {
+      const task = await (prisma as any).task.create({
+        data: {
+          companyId,
+          title: args.title || 'Voice Call Follow-up',
+          description: args.description || 'Auto-generated follow-up task from AI voice session.',
+          priority: args.priority || 'medium',
+          status: 'todo',
+          dueDate: args.dueDate ? new Date(args.dueDate) : null
+        }
+      });
+
+      return {
+        success: true,
+        taskId: task.id,
+        title: task.title,
+        status: task.status,
+        message: `Follow-up task "${task.title}" has been created for the team.`
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message,
+        message: 'Could not create follow-up task at this time.'
+      };
+    }
+  }
+};
+
+/**
+ * Tool 6: Apply Guardrail-Compliant Promotional or Retention Discount
+ */
+export const applyDiscountTool: VoiceToolDefinition = {
+  name: 'apply_discount',
+  description: 'Applies a promotional or retention discount to the customer quote or order subject to company guardrail policies.',
+  allowedRoles: ['all'],
+  category: 'pricing',
+  parameters: {
+    discountPercent: { type: 'number', description: 'Discount percentage (0-100)' },
+    discountAmount: { type: 'number', description: 'Direct discount amount' },
+    reason: { type: 'string', description: 'Reason for offering the discount (e.g. price hesitation, loyalty)' }
+  },
+  execute: async (args, context) => {
+    const { companyId, voiceAgentId } = context as any;
+    const check = await GuardrailEnforcementEngine.validateToolAction(
+      voiceAgentId || '',
+      companyId || '',
+      'apply_discount',
+      args
+    );
+
+    if (!check.allowed) {
+      return {
+        success: false,
+        discountApplied: false,
+        reason: check.reason,
+        message: `Discount could not be applied: ${check.reason}`
+      };
+    }
+
+    const appliedPercent = check.sanitizedArguments?.discountPercent ?? args.discountPercent;
+    const appliedAmount = check.sanitizedArguments?.discountAmount ?? args.discountAmount;
+
+    return {
+      success: true,
+      discountApplied: true,
+      discountPercent: appliedPercent,
+      discountAmount: appliedAmount,
+      overridden: check.overridden || false,
+      note: check.reason || 'Discount validated by Guardrail Policy Engine.',
+      message: appliedPercent
+        ? `A ${appliedPercent}% discount has been approved and applied to your order.`
+        : `A discount of ${context.currencySymbol || '$'}${appliedAmount} has been approved.`
+    };
+  }
+};
+
+/**
+ * Tool 7: Transfer Caller to Human Staff or Escalation Queue
+ */
+export const transferToHumanTool: VoiceToolDefinition = {
+  name: 'transfer_to_human',
+  description: 'Transfers or escalates the active voice call to a human department specialist or live operator.',
+  allowedRoles: ['all'],
+  category: 'telephony',
+  parameters: {
+    reason: { type: 'string', description: 'Reason for human handoff or escalation', required: true },
+    department: { type: 'string', description: 'Target department: support, billing, sales, manager' }
+  },
+  execute: async (args, context) => {
+    return {
+      success: true,
+      action: 'sip_transfer',
+      department: args.department || 'general_support',
+      reason: args.reason,
+      message: 'I am transferring you to a team specialist right now. Please hold for just a moment while I connect you.'
+    };
+  }
+};
+
+
 export const voiceforceTools: VoiceToolDefinition[] = [
   bookAppointmentTool,
   requestOrbitMeetingBookingTool,
   createSalesOrderTool,
-  sendSmsConfirmationTool
+  sendSmsConfirmationTool,
+  searchBusinessKnowledgeTool,
+  searchKnowledgeBaseTool,
+  createTaskTool,
+  applyDiscountTool,
+  transferToHumanTool
 ];
+
 
