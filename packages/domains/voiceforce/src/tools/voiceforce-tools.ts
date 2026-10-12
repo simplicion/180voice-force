@@ -264,7 +264,6 @@ export const sendSmsConfirmationTool: VoiceToolDefinition = {
   }
 };
 
-
 /**
  * Tool 4: Search Company Knowledge Vaults & Business Documents (RAG)
  */
@@ -285,7 +284,6 @@ export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
     if (!queryText) return { success: false, error: 'Query text is required' };
 
     try {
-      // 1. Search knowledge chunks
       const chunks = await (prisma as any).knowledgeChunk.findMany({
         where: {
           content: { contains: queryText, mode: 'insensitive' }
@@ -294,7 +292,6 @@ export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
         select: { id: true, content: true }
       });
 
-      // 2. Search company offerings / catalog
       const offerings = await (prisma as any).companyOffering.findMany({
         where: {
           companyId,
@@ -309,10 +306,13 @@ export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
 
       const results: string[] = [];
       if (chunks && chunks.length > 0) {
-        chunks.forEach((c: any) => results.push(`[Document Knowledge]: ${c.content}`));
+        chunks.forEach((c: any) => results.push('[Document Knowledge]: ' + c.content));
       }
       if (offerings && offerings.length > 0) {
-        offerings.forEach((o: any) => results.push(`[Offering Catalog]: ${o.name} - ${o.description || 'Standard'} (Price: ${o.currency || '$'}${o.price})`));;
+        offerings.forEach((o: any) => {
+          const sym = o.currency || '$';
+          results.push('[Offering Catalog]: ' + o.name + ' - ' + (o.description || 'Standard') + ' (Price: ' + sym + o.price + ')');
+        });
       }
 
       if (results.length === 0) {
@@ -320,7 +320,7 @@ export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
           success: true,
           query: queryText,
           found: false,
-          message: `No specific document found matching "${queryText}". Proceed using standard company guidelines.`
+          message: 'No specific document found matching "' + queryText + '". Proceed using standard company guidelines.'
         };
       }
 
@@ -329,7 +329,7 @@ export const searchBusinessKnowledgeTool: VoiceToolDefinition = {
         query: queryText,
         found: true,
         results,
-        message: `Found ${results.length} relevant reference(s):\n${results.join('\n')}`
+        message: 'Found ' + results.length + ' relevant reference(s):\n' + results.join('\n')
       };
     } catch (err: any) {
       return {
@@ -384,7 +384,7 @@ export const createTaskTool: VoiceToolDefinition = {
         taskId: task.id,
         title: task.title,
         status: task.status,
-        message: `Follow-up task "${task.title}" has been created for the team.`
+        message: 'Follow-up task "' + task.title + '" has been created for the team.'
       };
     } catch (err: any) {
       return {
@@ -423,7 +423,7 @@ export const applyDiscountTool: VoiceToolDefinition = {
         success: false,
         discountApplied: false,
         reason: check.reason,
-        message: `Discount could not be applied: ${check.reason}`
+        message: 'Discount could not be applied: ' + check.reason
       };
     }
 
@@ -438,8 +438,8 @@ export const applyDiscountTool: VoiceToolDefinition = {
       overridden: check.overridden || false,
       note: check.reason || 'Discount validated by Guardrail Policy Engine.',
       message: appliedPercent
-        ? `A ${appliedPercent}% discount has been approved and applied to your order.`
-        : `A discount of ${context.currencySymbol || '$'}${appliedAmount} has been approved.`
+        ? 'A ' + appliedPercent + '% discount has been approved and applied to your order.'
+        : 'A discount of ' + (context.currencySymbol || '$') + appliedAmount + ' has been approved.'
     };
   }
 };
@@ -467,7 +467,6 @@ export const transferToHumanTool: VoiceToolDefinition = {
   }
 };
 
-
 export const voiceforceTools: VoiceToolDefinition[] = [
   bookAppointmentTool,
   requestOrbitMeetingBookingTool,
@@ -479,5 +478,3 @@ export const voiceforceTools: VoiceToolDefinition[] = [
   applyDiscountTool,
   transferToHumanTool
 ];
-
-
