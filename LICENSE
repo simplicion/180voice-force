@@ -1,0 +1,67 @@
+VOICE FORCE COMMUNITY & COMMERCIAL REVENUE-SHARE LICENSE
+Version 1.0, October 2026
+
+Copyright (c) 2026 Voice Force / 180 Workspace (https://vanityworkspace.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, subject to the following conditions:
+
+================================================================================
+1. NON-COMMERCIAL & EVALUATION USE (STANDARD MIT TERMS)
+================================================================================
+For personal use, academic research, educational instruction, open-source
+contributions, testing, development, and internal evaluation:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+2. COMMERCIAL DEPLOYMENT & 10% REVENUE SHARE COVENANT
+================================================================================
+Any individual, entity, company, or organization that utilizes, deploys,
+embeds, white-labels, or operates the Software (or any derivative work thereof)
+as a commercial product, SaaS platform, paid service, telephony agency, or
+revenue-generating business ("Commercial User") agrees to the following binding
+covenant:
+
+a. Revenue Sharing Obligation:
+   The Commercial User shall pay to the Licensor (Voice Force / 180 Workspace)
+   a royalty of ten percent (10%) of all gross revenues ("Gross Revenue")
+   generated directly or indirectly through the provision, subscription, resale,
+   or deployment of services powered by the Software.
+
+b. Gross Revenue Definition:
+   Gross Revenue includes, without limitation:
+   - Monthly or annual software subscription fees (SaaS).
+   - Per-minute telephony, telecommunications, or voice synthesis surcharges.
+   - Platform setup, onboarding, integration, or custom agent provisioning fees.
+   - API access, webhook processing, or usage-based billing fees.
+   - Agency retainer or management fees derived from managing voice agents.
+
+c. Reporting & Remittance:
+   - Commercial Users must register their commercial deployment by emailing
+     partners@vanityworkspace.com or registering via the partner portal.
+   - Royalties shall be calculated and remitted on a monthly calendar basis
+     within thirty (30) days following the end of each calendar month.
+   - The Licensor reserves the right to request reasonable third-party accounting
+     or payment gateway statements (e.g., Stripe/Razorpay) verifying reported
+     telephony and subscription revenues.
+
+d. Failure to Remit:
+   Failure to report or remit the required 10% revenue share within sixty (60)
+   days of due date automatically revokes the Commercial User's license to
+   utilize, operate, update, or deploy the Software for commercial purposes.
+
+For full terms, exemptions, enterprise licensing, or questions, please refer to
+COMMERCIAL_TERMS.md or contact: legal@vanityworkspace.com / partners@vanityworkspace.com
