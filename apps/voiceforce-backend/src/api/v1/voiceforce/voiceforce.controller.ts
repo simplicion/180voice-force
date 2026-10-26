@@ -60,7 +60,7 @@ export const VoiceforceController = {
         VoiceBillingService.getWalletDetails(companyId),
         (prisma as any).company.findUnique({
           where: { id: companyId },
-          select: { currency: true, currencySymbol: true, country: true }
+          select: { currency: true, currencySymbol: true }
         })
       ]);
 
@@ -1625,7 +1625,7 @@ export const VoiceforceController = {
         }),
         (prisma as any).company.findUnique({
           where: { id: companyId },
-          select: { currency: true, currencySymbol: true, country: true }
+          select: { currency: true, currencySymbol: true }
         })
       ]);
 
@@ -3251,15 +3251,23 @@ export const VoiceforceController = {
       const companyId = req.companyId || req.user?.companyId || req.query?.companyId;
       if (!companyId) return res.status(401).json({ error: 'Company ID is required' });
 
-      const documents = await (prisma as any).companyKnowledgeDoc.findMany({
-        where: { companyId },
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: {
-            select: { chunks: true }
+            let documents: any[] = [];
+      if ((prisma as any).companyKnowledgeDoc) {
+        documents = await (prisma as any).companyKnowledgeDoc.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            _count: {
+              select: { chunks: true }
+            }
           }
-        }
-      });
+        }).catch(() => []);
+      } else if ((prisma as any).document) {
+        documents = await (prisma as any).document.findMany({
+          where: { companyId },
+          orderBy: { createdAt: 'desc' }
+        }).catch(() => []);
+      }
 
       return res.json({
         success: true,
