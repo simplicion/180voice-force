@@ -303,7 +303,7 @@ export class WalletController {
       const timestamp = (req.headers['x-180-timestamp'] || '') as string;
       const eventType = (req.headers['x-180-event'] || req.body?.event || 'payment.succeeded') as string;
 
-      const webhookSecret = process.env.ONE_EIGHTY_WEBHOOK_SECRET || process.env.WORKSPACE_WEBHOOK_SECRET;
+      const webhookSecret = process.env.ONE_EIGHTY_WEBHOOK_SECRET || process.env['180_WEBHOOK_SECRET'] || process.env.WORKSPACE_WEBHOOK_SECRET;
 
       let rawBody = (req as any).rawBody;
       if (rawBody instanceof Buffer) {

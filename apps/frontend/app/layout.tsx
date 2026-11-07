@@ -28,6 +28,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
+                window.__180_CLIENT_ID = "180_client_d5e36efab3d1cfa6403bf55e6c585256";
                 var theme = localStorage.getItem('180_theme');
                 // Default to white/light mode unless dark is explicitly stored
                 if (theme === 'dark') {

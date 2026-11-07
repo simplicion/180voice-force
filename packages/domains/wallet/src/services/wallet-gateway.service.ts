@@ -164,8 +164,8 @@ export class WalletGatewayService {
       };
     }
 
-    const oneEightySecret = process.env.ONE_EIGHTY_CLIENT_SECRET;
-    const oneEightyClientId = process.env.ONE_EIGHTY_CLIENT_ID || process.env.NEXT_PUBLIC_180_CLIENT_ID;
+    const oneEightySecret = process.env.ONE_EIGHTY_CLIENT_SECRET || process.env['180_CLIENT_SECRET'];
+    const oneEightyClientId = process.env.ONE_EIGHTY_CLIENT_ID || process.env['180_CLIENT_ID'] || process.env.NEXT_PUBLIC_180_CLIENT_ID;
 
     const notesPayload: Record<string, string> = {
       companyId: validId,
@@ -276,7 +276,7 @@ export class WalletGatewayService {
   ): Promise<{ success: boolean; newBalance: number; alreadyProcessed?: boolean }> {
     const validId = WalletIsolationGuard.assertCompany(companyId, 'verifyAndCreditPayment');
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
-    const webhookSecret = process.env.ONE_EIGHTY_WEBHOOK_SECRET;
+    const webhookSecret = process.env.ONE_EIGHTY_WEBHOOK_SECRET || process.env['180_WEBHOOK_SECRET'];
 
     // 1. Verify HMAC SHA-256 signature
     if (keySecret) {
