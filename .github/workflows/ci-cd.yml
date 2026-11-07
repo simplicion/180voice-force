@@ -91,7 +91,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy apps/voiceforce-frontend/out --project-name=voiceforce --branch=main --commit-dirty=true
+          command: pages deploy apps/frontend/out --project-name=voiceforce --branch=main --commit-dirty=true
 
   # ====================================================
   # Phase 3: Docker Build Verification for Dedicated Backend
@@ -110,4 +110,4 @@ jobs:
 
       - name: Build Backend Docker Image
         run: |
-          docker build -t voiceforce-backend:latest -f apps/voiceforce-backend/Dockerfile . || true
+          docker build -t voiceforce-backend:latest -f apps/backend/Dockerfile . || true
